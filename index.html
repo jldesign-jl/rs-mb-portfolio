@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>JL DESIGN｜Royal Salute Masterbrand</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; background:#0a0c10; }
+  body { font-family:-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang TC", "Noto Sans TC", sans-serif; }
+
+  #deck {
+    height:100dvh; overflow-y:scroll;
+    scroll-snap-type:y mandatory;
+    scrollbar-width:none;
+  }
+  #deck::-webkit-scrollbar { display:none; }
+
+  .pagewrap {
+    height:100dvh; scroll-snap-align:start; scroll-snap-stop:always;
+    display:flex; align-items:center; justify-content:center;
+    padding:0;
+  }
+  .stage {
+    position:relative; overflow:hidden; background:#000;
+    width:min(100vw, calc(100dvh * 1.77777778));
+    aspect-ratio:16/9;
+    box-shadow:0 0 60px rgba(0,0,0,.6);
+  }
+  .stage img.bg {
+    position:absolute; inset:0; width:100%; height:100%; display:block;
+  }
+  .stage video {
+    position:absolute; display:block; background:#000;
+    object-fit:fill; cursor:pointer;
+  }
+
+  /* UI */
+  #counter {
+    position:fixed; right:16px; bottom:14px; z-index:30;
+    color:#fff; font-size:12px; letter-spacing:.08em;
+    background:rgba(10,12,16,.55); backdrop-filter:blur(6px);
+    padding:6px 12px; border-radius:999px;
+    font-variant-numeric:tabular-nums; user-select:none;
+  }
+  #bar { position:fixed; left:0; top:0; height:2px; width:0; background:#c9a15c; z-index:30; transition:width .25s ease; }
+  .nav {
+    position:fixed; right:10px; z-index:30; width:38px; height:38px; border-radius:50%;
+    border:1px solid rgba(255,255,255,.25); background:rgba(10,12,16,.45);
+    color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    backdrop-filter:blur(6px); font-size:16px; line-height:1;
+  }
+  .nav:hover { background:rgba(255,255,255,.15); }
+  #up   { top:calc(50% - 46px); }
+  #down { top:calc(50% + 8px); }
+  .soundtip {
+    position:absolute; left:50%; bottom:18px; transform:translateX(-50%);
+    z-index:5; color:#fff; font-size:12px; letter-spacing:.05em;
+    background:rgba(10,12,16,.6); padding:6px 14px; border-radius:999px;
+    pointer-events:none; opacity:.85;
+  }
+  @media (max-width:700px){
+    .nav{ display:none; }
+    #counter{ font-size:11px; }
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div id="deck"></div>
+<div id="counter">1 / 94</div>
+<button class="nav" id="up" aria-label="上一頁">▲</button>
+<button class="nav" id="down" aria-label="下一頁">▼</button>
+
+<script>
+const TOTAL = 94, CW = 1920, CH = 1080;
+// 每頁影片：page -> [file, x, y, w, h]
+const VIDEOS = {
+  23:[["v23_1.mp4",-2,-103,1923,1287]],
+  24:[["v24_1.mp4",-152,351,1237,732],["v24_2.mp4",900,-13,545,364]],
+  26:[["v26_1.mp4",-23,0,1943,1080]],
+  27:[["v27_1.mp4",728,325,880,412],["v27_2.mp4",878,0,580,354],["v27_3.mp4",-23,718,645,363]],
+  29:[["v29_1.mp4",-113,-2,2146,1084]],
+  30:[["v30_1.mp4",-119,-1,1167,723],["v30_2.mp4",913,0,513,351],["v30_3.mp4",1370,351,608,376],["v30_4.mp4",870,721,594,363]],
+  36:[["v36_1.mp4",670,665,578,323],["v36_2.mp4",57,663,580,324],["v36_3.mp4",1280,689,579,299]],
+  37:[["v37_1.mp4",1678,363,646,360],["v37_2.mp4",308,363,646,360],["v37_3.mp4",-362,363,646,360],["v37_4.mp4",0,-13,632,352],["v37_5.mp4",1302,-6,620,345],["v37_6.mp4",659,-6,620,345],["v37_7.mp4",-14,746,646,360],["v37_8.mp4",660,746,620,345],["v37_9.mp4",987,363,666,360],["v37_10.mp4",1308,746,632,341]],
+  38:[["v38_1.mp4",1087,146,775,435]],
+  41:[["v41_1.mp4",1081,144,785,842]],
+  57:[["v57_1.mp4",0,0,1920,1080]],
+  65:[["v65_1.mp4",170,-7,875,1093]],
+  75:[["v75_1.mp4",0,0,1920,1080]],
+  76:[["v76_1.mp4",384,145,385,684],["v76_2.mp4",1152,145,385,684],["v76_3.mp4",0,145,385,684],["v76_4.mp4",768,145,385,684],["v76_5.mp4",1535,145,385,684]]
+};
+// 有音軌、值得提示點擊開聲音的頁
+const SOUND_PAGES = new Set([57, 75, 76]);
+
+const deck = document.getElementById('deck');
+const counter = document.getElementById('counter');
+const bar = document.getElementById('bar');
+const pad = n => String(n).padStart(3, '0');
+
+for (let p = 1; p <= TOTAL; p++) {
+  const wrap = document.createElement('div');
+  wrap.className = 'pagewrap';
+  wrap.dataset.page = p;
+  const stage = document.createElement('div');
+  stage.className = 'stage';
+  const img = document.createElement('img');
+  img.className = 'bg';
+  img.alt = 'page ' + p;
+  img.loading = 'lazy';
+  img.src = 'slides/slides.' + pad(p) + '.jpeg';
+  stage.appendChild(img);
+  (VIDEOS[p] || []).forEach(([f, x, y, w, h]) => {
+    const v = document.createElement('video');
+    v.dataset.src = 'videos/' + f;
+    v.muted = true; v.loop = true; v.playsInline = true;
+    v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
+    v.preload = 'none';
+    v.style.left = (x / CW * 100) + '%';
+    v.style.top = (y / CH * 100) + '%';
+    v.style.width = (w / CW * 100) + '%';
+    v.style.height = (h / CH * 100) + '%';
+    v.addEventListener('error', () => {
+      if (!v.error || v.error.code === 4) v.remove(); // 檔案不存在或格式不支援才移除，保留底圖
+    });
+    v.addEventListener('click', () => { v.muted = !v.muted; });
+    stage.appendChild(v);
+  });
+  if (SOUND_PAGES.has(p) && VIDEOS[p]) {
+    const tip = document.createElement('div');
+    tip.className = 'soundtip';
+    tip.textContent = '點擊影片開啟聲音';
+    stage.appendChild(tip);
+  }
+  wrap.appendChild(stage);
+  deck.appendChild(wrap);
+}
+
+// 影片載入（接近視窗就先載）
+const loader = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    e.target.querySelectorAll('video[data-src]').forEach(v => {
+      v.src = v.dataset.src; v.removeAttribute('data-src'); v.load();
+    });
+  });
+}, { rootMargin: '120% 0px' });
+
+// 進入畫面播放、離開暫停 + 頁碼
+let current = 1;
+const player = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    const vids = e.target.querySelectorAll('video');
+    if (e.isIntersecting && e.intersectionRatio >= 0.55) {
+      current = +e.target.dataset.page;
+      counter.textContent = current + ' / ' + TOTAL;
+      bar.style.width = (current / TOTAL * 100) + '%';
+      vids.forEach(v => {
+        if (v.dataset.src) { v.src = v.dataset.src; v.removeAttribute('data-src'); v.load(); }
+        const pr = v.play(); if (pr) pr.catch(() => {});
+      });
+    } else {
+      vids.forEach(v => { v.pause(); if (!e.isIntersecting) v.muted = true; });
+    }
+  });
+}, { threshold: [0, 0.55] });
+
+document.querySelectorAll('.pagewrap').forEach(w => { loader.observe(w); player.observe(w); });
+
+function goto(p) {
+  p = Math.max(1, Math.min(TOTAL, p));
+  document.querySelector('.pagewrap[data-page="' + p + '"]')
+    .scrollIntoView({ behavior: 'smooth' });
+}
+document.getElementById('up').onclick = () => goto(current - 1);
+document.getElementById('down').onclick = () => goto(current + 1);
+window.addEventListener('keydown', e => {
+  if (['ArrowDown','PageDown',' '].includes(e.key)) { e.preventDefault(); goto(current + 1); }
+  if (['ArrowUp','PageUp'].includes(e.key)) { e.preventDefault(); goto(current - 1); }
+  if (e.key === 'Home') { e.preventDefault(); goto(1); }
+  if (e.key === 'End') { e.preventDefault(); goto(TOTAL); }
+});
+</script>
+</body>
+</html>
